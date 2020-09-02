@@ -1,5 +1,7 @@
 # xmodem80 - Xmodem for Z80 CP/M 2.2 for CON:
 
+This project was cloned from SmallRoomLabs in order to issue a fixed version of the XR.Z80 program.
+
 ### What
 
 By some reason I couldn't get any of the existing xmodem programs to work
