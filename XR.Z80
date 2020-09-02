@@ -144,6 +144,7 @@ GetRestOfPacket:
 
 	djnz	GetRestOfPacket
 
+	pop	HL		;ADD THIS
 	ld	HL,packet+3	; Calculate checksum from 128 bytes of data
 	ld	B,128
 	ld	A,0
@@ -184,16 +185,6 @@ csloop:	add	A,(HL)		; Just add up the bytes
 	call	CONOUT		; packet and go back and fetch some more
 	jp	GetNewPacket
 
-DeleteFile:
-	ld  	DE,DFCB		; Delete file first
-	ld 	C,DELFILE	;
-	jp	BDOS		; Returns A=255 if error, but we don't care
-
-CloseFile:
-	ld  	DE,DFCB		; Close the file
-	ld 	C,CLOSEFIL
-	jp	BDOS
-
 Done:
 	call	CloseFile
 	ld	C,ACK		; Tell uploader we're done
@@ -210,6 +201,7 @@ FailCreateFile:
 	call	PrintString0
 	call	PrintFilename
 	ld	HL,msgCRLF
+	call	PrintString0
 	jp	Exit
 
 FailWrite:
@@ -229,10 +221,19 @@ Cancelled:
 	ld 	HL,msgCancel
 	jp	Die
 
+CloseFile:
+	ld  	DE,DFCB		; Close the file
+	ld 	C,CLOSEFIL
+	call	BDOS
+	ret
+
 Die:
 	call 	PrintString0	; Prints message and exits from program
 	call	CloseFile
-	call	DeleteFile
+	ld  	DE,DFCB		; Delete file first
+	ld 	C,DELFILE	;
+	call	BDOS		; Returns A=255 if error, but we don't care
+
 Exit:
 	ld	SP,(oldSP)
 	ret
@@ -272,10 +273,10 @@ GCtmoc:
 	ret
 
 GotChar:
-	pop	BC
-	pop	BC
-	pop	BC
 	call	CONIN
+	pop	BC
+	pop	BC
+	pop	BC
 	or 	A 		; Clear Carry signals success
 	ret
 
@@ -291,7 +292,6 @@ PrintString0:
 	call	CONOUT		; else print the character
 	inc	HL
 	jp	PrintString0
-
 
 ;
 ; Prints the 'B' bytes long string pointed to by HL, but no spaces
