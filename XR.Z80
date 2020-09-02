@@ -2,6 +2,9 @@
 ; XR - Xmodem Receive for Z80 CP/M 2.2 using CON:
 ; Copyright 2017 Mats Engstrom, SmallRoomLabs
 ;
+; Bug fix: Stack overflow error, by D.Cooper 2020
+;          Also some code rearranged to use call instead of jp for BDOS functions
+;
 ; Licensed under the MIT license
 ;*****************************************************************************
 ;
@@ -144,7 +147,7 @@ GetRestOfPacket:
 
 	djnz	GetRestOfPacket
 
-	pop	HL		;ADD THIS
+	pop	HL		; Added to prevent stack overflow previously caused fail at 122 blocks
 	ld	HL,packet+3	; Calculate checksum from 128 bytes of data
 	ld	B,128
 	ld	A,0
@@ -342,7 +345,7 @@ CONOUT:	jp	0ff0ch	; Write the character in C to the screen
 ;
 ; Message strings
 ;
-msgHeader: DB 	'CP/M XR - Xmodem receive v0.1 / SmallRoomLabs 2017',CR,LF,0
+msgHeader: DB 	'CP/M XR - Xmodem receive v0.2 / SmallRoomLabs 2017',CR,LF,0
 msgFailWrt:DB	CR,LF,'Failed writing to disk',CR,LF,0
 msgFailure:DB	CR,LF,'Transmssion failed',CR,LF,0
 msgCancel: DB	CR,LF,'Transmission cancelled',CR,LF,0
