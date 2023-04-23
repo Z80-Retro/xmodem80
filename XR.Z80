@@ -196,6 +196,8 @@ Done:
 	ld	C,ACK		; Tell uploader we're done
 	call	CONOUT
 	ld 	HL,msgSucces1	; Print success message and filename
+        ld      A,2             ; this is a fidle, waits and clears input
+        call    GetCharTmo
 	call	PrintString0
 	call	PrintFilename
 	ld 	HL,msgSucces2
@@ -234,6 +236,8 @@ CloseFile:
 	ret
 
 Die:
+        ld      A,2             ; this is a fidle, waits and clears input
+        call    GetCharTmo
 	call 	PrintString0	; Prints message and exits from program
 	call	CloseFile
 	ld  	DE,DFCB		; Delete file first

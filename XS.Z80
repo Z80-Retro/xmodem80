@@ -185,7 +185,7 @@ Done:
 DoneLoop:
 	ld	C,EOT		; Tell receiver we're done
 	call	CONOUT
- 	ld 	A,10
+ 	ld 	A,2		;fidle wait and clear input
  	call	GetCharTmo
  	jp 	C,DoneTmo
 	ld	C,EOT		; Tell receiver we're done again
@@ -222,6 +222,8 @@ Cancelled:
 	jp	Die
 
 Die:
+ 	ld 	A,2		;fidle wait and clear input
+ 	call	GetCharTmo
 	call 	PrintString0	; Prints message and exits from program
 	call	CloseFile
 Exit:
