@@ -3,7 +3,10 @@
 ; Copyright 2017 Mats Engstrom, SmallRoomLabs
 ;
 ; Bug fix: Stack overflow error, by D.Cooper 2020
-;          Also some code rearranged to use call instead of jp for BDOS functions
+;     Also some code rearranged to use call instead of jp for BDOS functions
+; 22/04/23 Derek Cooper, Fixed some issues with code
+; thanks for the suggestions from Wayne Warthen and Richard Deane.
+;
 ;
 ; Licensed under the MIT license
 ;*****************************************************************************
@@ -75,10 +78,10 @@ CAN:	EQU	'X'-40h	; ^X = Cancel
 ;
 	ORG 0100h
 
-	ld	A,(2)	; High part of BIOS Warm Boot address
-	ld	(CONST+2),A	; Update jump target addressed
-	ld	(CONIN+2),A	; ...
-	ld	(CONOUT+2),A	; ...
+	ld	A,(2)		; High part of BIOS Warm Boot address
+	ld	(vCONST+2),A	; Update jump target addressed
+	ld	(vCONIN+2),A	; ...
+	ld	(vCONOUT+2),A	; ...
 
 	ld	(oldSP),SP
 	ld	SP,stackend
@@ -334,16 +337,32 @@ PFnoDrive:
 ;
 ; BIOS jump table vectors to be patched
 ;
-CONST:	jp 	0ff06h	; A=0 if no character is ready, 0FFh if one is
-CONIN:	jp	0ff09h	; Wait until character ready available and return in A
-CONOUT:	jp	0ff0ch	; Write the character in C to the screen
+CONST:
+	push	HL
+vCONST:	EQU	$
+	call	0ff06h	; A=0 if no character is ready, 0FFh if one is
+	pop	HL
+	ret
 
+CONIN:
+	push	HL
+vCONIN:	equ	$
+	call	0ff09h	; Wait until character ready available and return in A
+	pop	HL
+	ret
+
+CONOUT:
+	push	HL
+vCONOUT:equ	$
+	call	0ff0ch	; Write the character in C to the screen
+	pop	HL
+	ret
 ;
 ; Message strings
 ;
 msgHeader: DB 	'CP/M XR - Xmodem receive v1.0',CR,LF,0
 msgFailWrt:DB	CR,LF,'Failed writing to disk',CR,LF,0
-msgFailure:DB	CR,LF,'Transmssion failed',CR,LF,0
+msgFailure:DB	CR,LF,'Transmission failed',CR,LF,0
 msgCancel: DB	CR,LF,'Transmission cancelled',CR,LF,0
 msgSucces1:DB	CR,LF,'File ',0
 msgSucces2:DB	' received successfully',CR,LF,0
