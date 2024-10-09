@@ -101,4 +101,4 @@ flash: $(TARGET1).hex $(TARGET2).hex
 clean:
 	@echo "[clean]"
 	@rm -rf *~ 
-	@rm -rf *.{cap,log,tmp,rom,bin,hex,lst}
+	@rm -rf *.{cap,log,tmp,rom,bin,hex,lst,com}
