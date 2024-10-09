@@ -427,7 +427,7 @@ vCONOUT:equ	$
 ;
 ; Message strings
 ;
-msgHeader: DB   'CP/M XR - Xmodem receive v0.2 / SmallRoomLabs 2017',CR,LF,0
+msgHeader: DB   'CP/M XR - Xmodem receive v0.2',CR,LF,0
 msgFailWrt:DB	CR,LF,'Failed writing to disk',CR,LF,0
 msgFailure:DB	CR,LF,'Transmission failed',CR,LF,0
 msgCancel: DB	CR,LF,'Transmission cancelled',CR,LF,0
