@@ -14,16 +14,16 @@
 ;	Common entry points and locations
 ;
 BOOT:	EQU	0000h	; Warm boot/Reset vector
-BDOS:	EQU 	0005h	; BDOS function vector
+BDOS:	EQU	0005h	; BDOS function vector
 DFCB:	EQU	5CH	; Default File Control Block
-DFCBcr:	EQU 	DFCB+32 ; Current record
+DFCBcr:	EQU	DFCB+32 ; Current record
 dbuf:	EQU	0080h
 
 ;
 ; BDOS function codes
 ;
 ;WBOOT:	 EQU	0	; System Reset
-;GETCON: EQU	1	; Console Input A<char
+GETCON: EQU	1	; Console Input A<char
 ;OUTCON: EQU	2	; Console Output E=char
 ;GETRDR: EQU	3	; Reader Input A<char
 ;PUNCH:	 EQU	4	; Punch Output E=char
@@ -39,7 +39,7 @@ dbuf:	EQU	0080h
 ;SETDSK: EQU	14	; Select Disk E=diskno
 ;OPENFIL:EQU	15	; Open File DE=FCBaddr A<handle (FFerr)
 CLOSEFIL:EQU	16	; Close File DE=FCBaddr A<handle (FFerr)
-;GETFST: EQU	17	; Search for First DE=FCBaddr A<handle (FFerr)
+GETFST: EQU	17	; Search for First DE=FCBaddr A<handle (FFerr)
 ;GETNXT: EQU	18	; Search for Next A<handle (FFerr)
 DELFILE: EQU	19	; Delete File DE=FCBaddr A<handle (FFerr)
 ;READSEQ:EQU	20	; Read Sequential DE=FCBaddr A<status (00ok)
@@ -66,7 +66,7 @@ PUTDMA:	 EQU	26	; Set DMA Address DE=addr
 ; ASCII codes
 ;
 LF:	EQU	'J'-40h	; ^J LF
-CR: 	EQU 	'M'-40h	; ^M CR/ENTER
+CR:	EQU	'M'-40h	; ^M CR/ENTER
 SOH:	EQU	'A'-40h	; ^A CTRL-A
 EOT:	EQU	'D'-40h	; ^D = End of Transmission
 ACK:	EQU	'F'-40h	; ^F = Positive Acknowledgement
@@ -77,7 +77,6 @@ CAN:	EQU	'X'-40h	; ^X = Cancel
 ; Start of code
 ;
 	ORG 0100h
-
 	ld	A,(2)		; High part of BIOS Warm Boot address
 	ld	(vCONST+2),A	; Update jump target addressed
 	ld	(vCONIN+2),A	; ...
@@ -93,60 +92,118 @@ CAN:	EQU	'X'-40h	; ^X = Cancel
 	cp	' '
 	jp	Z,NoFileName
 
-	ld  	DE,DFCB		; Then create new file
-	ld 	A,0		; Start at block 0
+; Tim Gordon 2023-06-6 checked for existing file and blindly deleted if exists
+; This alleviates need to ERA file before XRing a replacement
+
+	ld HL,msgChecking1  ; Tell the user we're looking for an existing file
+	call PrintString0
+
+	; Filename given, now check if it already exists
+	ld  DE, DFCB
+	ld  C, GETFST
+	call BDOS
+
+	cp 0FFh
+	jp z, NoFileFound   ; Safe to create a new file
+
+FileExists:
+	ld	HL,msgChecking2  ; Tell them we found one
+	call	PrintString0
+
+	ld	C, GETCON
+	call	BDOS
+
+	push	AF
+	ld	HL, msgCRLF
+	call	PrintString0
+
+	pop	AF
+	cp	'Y'
+	jr 	z, AgreeToEraseOld
+	cp 	'y'
+	jr 	z, AgreeToEraseOld
+
+DidNotAgree:
+	ld	HL, msgAborting
+	call	PrintString0
+
+	jp	Exit
+
+AgreeToEraseOld:
+	ld	DE, DFCB
+	ld	C, DELFILE       ; File exists, use same FCB to delete it
+	call	BDOS           ; Don't bother checking for success
+
+	ld	HL,msgErased1   ; Tell the user that we blew away his old version
+	call    PrintString0
+	call    PrintFilename
+	ld	HL,msgErased2
+	call    PrintString0
+
+	jp	CreateNewFile
+
+NoFileFound:
+	ld	HL,msgChecking3  ; Say no file found
+	call	PrintString0
+
+CreateNewFile:
+	ld      DE,DFCB     ; Then create new file
+	ld	A,0     ; Start at block 0
 	ld	(DFCBcr),A
-	ld 	C,FCREATE
-	call	BDOS		; Returns A in 255 if error opening
-	inc 	A
+	ld	C,FCREATE
+	call    BDOS        ; Returns A in 255 if error opening
+	inc     A
 	jp	Z,FailCreateFile
 
-	ld 	A,1		; The first packet is number 1
-	ld 	(pktNo),A
-	ld 	A,255-1		; Also store the 1-complement of it
-	ld 	(pktNo1c),A
+	ld	HL,msgWaiting    ; Prompt transfer start
+	call	PrintString0
+ 
+	ld	A,1		; The first packet is number 1
+	ld	(pktNo),A
+	ld	A,255-1		; Also store the 1-complement of it
+	ld	(pktNo1c),A
 
 GetNewPacket:
 	ld	A,20		; We retry 20 times before giving up
-	ld 	(retrycnt),A
+	ld	(retrycnt),A
 
 NPloop:
-	ld 	A,5		; 5 Seconds of timeout before each new block
+	ld	A,5		; 5 Seconds of timeout before each new block
 	call	GetCharTmo
-	jp 	NC,NotPacketTimeout
+	jp	NC,NotPacketTimeout
 
 	ld	HL,retrycnt	; Reached max number of retries?
-	dec 	(HL)
-	jp 	Z,Failure	; Yes, print message and exit
+	dec	(HL)
+	jp	Z,Failure	; Yes, print message and exit
 
-	ld 	C,NAK		; Send a NAK to the uploader
+	ld	C,NAK		; Send a NAK to the uploader
 	call	CONOUT
-	jp 	NPloop
+	jp	NPloop
 
 NotPacketTimeout:
 	cp	EOT		; Did uploader say we're finished?
 	jp	Z,Done		; Yes, then we're done
-	cp 	CAN		; Uploader wants to abort transfer?
-	jp 	Z,Cancelled	; Yes, then we're also done
+	cp	CAN		; Uploader wants to abort transfer?
+	jp	Z,Cancelled	; Yes, then we're also done
 	cp	SOH		; Did we get a start-of-new-packet?
 	jp	NZ,NPloop	; No, go back and try again
 
 	ld	HL,packet	; Save the received char into the...
 	ld	(HL),A		; ...packet buffer and...
-	inc 	HL		; ...point to the next location
-	push 	HL
+	inc	HL		; ...point to the next location
+	push	HL
 
-	ld 	B,131		; Get 131 more characters for a full packet
+	ld	B,131		; Get 131 more characters for a full packet
 GetRestOfPacket:
-	push 	BC
-	ld 	A,1
+	push	BC
+	ld	A,1
 	call	GetCharTmo
-	pop 	BC
+	pop	BC
 
 	pop	HL		; Save the received char into the...
 	ld	(HL),A		; ...packet buffer and...
-	inc 	HL		; ...point to the next location
-	push 	HL
+	inc	HL		; ...point to the next location
+	push	HL
 
 	djnz	GetRestOfPacket
 
@@ -174,20 +231,20 @@ csloop:	add	A,(HL)		; Just add up the bytes
 	jp	NZ,Failure
 
 	ld	DE,packet+3	; Reset DMA address to the packet data buff
-	ld 	C,PUTDMA
+	ld	C,PUTDMA
 	call	BDOS
-	ld  	DE,DFCB		; File Description Block
-	ld 	C,WRTSEQ
+	ld	DE,DFCB		; File Description Block
+	ld	C,WRTSEQ
 	call	BDOS		; Returns A=0 if ok
 	cp	0
 	jp	NZ,FailWrite
 
 	ld	HL,pktNo	; Update the packet counters
-	inc 	(HL)
+	inc	(HL)
 	ld	HL,pktNo1c
 	dec	(HL)
 
-	ld 	C,ACK		; Tell uploader that we're happy with with
+	ld	C,ACK		; Tell uploader that we're happy with with
 	call	CONOUT		; packet and go back and fetch some more
 	jp	GetNewPacket
 
@@ -197,11 +254,11 @@ Done:
 	call	CONOUT
         ld      A,2             ; this is a fidle, waits and clears input
         call    GetCharTmo
-	ld 	HL,msgSucces1	; Print success message and filename
+	ld	HL,msgSucces1	; Print success message and filename
 	call	PrintString0
 	call	PrintFilename
-	ld 	HL,msgSucces2
-	call 	PrintString0
+	ld	HL,msgSucces2
+	call	PrintString0
 	jp	Exit
 
 FailCreateFile:
@@ -217,31 +274,31 @@ FailWrite:
 	jp	Die
 
 NoFileName:
-	ld 	HL,msgNoFile
-	call 	PrintString0
+	ld	HL,msgNoFile
+	call	PrintString0
 	jp	Exit
 
 Failure:
-	ld 	HL,msgFailure
+	ld	HL,msgFailure
 	jp	Die
 
 Cancelled:
-	ld 	HL,msgCancel
+	ld	HL,msgCancel
 	jp	Die
 
 CloseFile:
-	ld  	DE,DFCB		; Close the file
-	ld 	C,CLOSEFIL
+	ld	DE,DFCB		; Close the file
+	ld	C,CLOSEFIL
 	call	BDOS
 	ret
 
 Die:
         ld      A,2             ; this is a fidle, waits and clears input
         call    GetCharTmo
-	call 	PrintString0	; Prints message and exits from program
+	call	PrintString0	; Prints message and exits from program
 	call	CloseFile
-	ld  	DE,DFCB		; Delete file first
-	ld 	C,DELFILE	;
+	ld	DE,DFCB		; Delete file first
+	ld	C,DELFILE	;
 	call	BDOS		; Returns A=255 if error, but we don't care
 
 Exit:
@@ -255,7 +312,7 @@ Exit:
 ; it set.
 ;
 GetCharTmo:
-	ld 	B,A
+	ld	B,A
 GCtmoa:
 	push	BC
 	ld	B,105
@@ -266,7 +323,7 @@ GCtmoc:
 	push	BC
 	call	CONST
 	cp	00h		; A char available?
-	jp 	NZ,GotChar	; Yes, get out of loop
+	jp	NZ,GotChar	; Yes, get out of loop
 	ld	HL,(0)		; Waste some cycles
 	ld	HL,(0)		; ...
 	pop	BC
@@ -275,7 +332,7 @@ GCtmoc:
 	djnz	GCtmob
 	pop	BC
 	djnz	GCtmoa
-	scf 			; Set carry signals timeout
+	scf			; Set carry signals timeout
 	ret
 
 GotChar:
@@ -283,7 +340,7 @@ GotChar:
 	pop	BC
 	pop	BC
 	pop	BC
-	or 	A 		; Clear Carry signals success
+	or	A		; Clear Carry signals success
 	ret
 
 
@@ -294,7 +351,7 @@ PrintString0:
 	ld	A,(HL)
 	or	A		; Check if got zero?
 	ret	Z		; If zero return to caller
-	ld 	C,A
+	ld	C,A
 	call	CONOUT		; else print the character
 	inc	HL
 	jp	PrintString0
@@ -334,7 +391,7 @@ PFnoDrive:
 	ld	C,'.'		; Print the dot between filname & extension
 	call	CONOUT
 
-	ld 	B,3		; Then print the extension
+	ld	B,3		; Then print the extension
 	call	PrintNoSpaceB
 	ret
 
@@ -370,7 +427,7 @@ vCONOUT:equ	$
 ;
 ; Message strings
 ;
-msgHeader: DB 	'CP/M XR - Xmodem receive v1.0',CR,LF,0
+msgHeader: DB   'CP/M XR - Xmodem receive v0.2 / SmallRoomLabs 2017',CR,LF,0
 msgFailWrt:DB	CR,LF,'Failed writing to disk',CR,LF,0
 msgFailure:DB	CR,LF,'Transmission failed',CR,LF,0
 msgCancel: DB	CR,LF,'Transmission cancelled',CR,LF,0
@@ -379,23 +436,30 @@ msgSucces2:DB	' received successfully',CR,LF,0
 msgFailCre:DB	'Failed creating file named ',0
 msgNoFile: DB	'Filename expeced',CR,LF,0
 msgCRLF:   DB	CR,LF,0
+msgErased1: DB 'Previous file ',0
+msgErased2: DB  ' erased',CR,LF,0
+msgChecking1:   DB 'Checking for previous file... ',0
+msgChecking2:   DB 'previous file found- erase? (y/n) ',0
+msgChecking3:   DB 'no file found',CR,LF,0
+msgAborting:    DB 'Aborting transfer',CR,LF,0
+msgWaiting: DB 'Start transfer',CR,LF,0
 
 ;
 ; Variables
 ;
 oldSP:	 DS	2	; The orginal SP to be restored before exiting
-retrycnt:DS 	1	; Counter for retries before giving up
+retrycnt:DS	1	; Counter for retries before giving up
 chksum:	 DS	1	; For claculating the ckecksum of the packet
-pktNo:	 DS 	1 	; Current packet Number
-pktNo1c: DS 	1 	; Current packet Number 1-complemented
-packet:	 DS 	1	; SOH
+pktNo:	 DS	1	; Current packet Number
+pktNo1c: DS	1	; Current packet Number 1-complemented
+packet:	 DS	1	; SOH
 	 DS	1	; PacketN
 	 DS	1	; -PacketNo,
 	 DS	128	; data*128,
-	 DS	1 	; chksum
+	 DS	1	; chksum
 
-stack:	 DS 	256
+stack:	 DS	256
 stackend: EQU $
 
 	END
-
+

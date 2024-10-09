@@ -8,7 +8,9 @@ SERIAL		=  minicom -b -D $(ESPPORT) $(EMULATIONBAUD)
 SED			=  /bin/sed
 
 TARGET1		= XR
+target1_lower   = xr
 TARGET2		= XS
+target2_lower	= xs
 DRIVE		= J:
 
 INTERACTIVE:=$(shell [ -t 0 ] && echo 1)
@@ -17,14 +19,14 @@ all: $(TARGET1).hex $(TARGET2).hex
 
 full: clean flash
 
-$(TARGET1).hex: $(TARGET1).Z80
+$(TARGET1).hex: $(target1_lower).z80
 	@echo [Z80ASM] $<
 	@$(ASM) $(FLAGSHEX) $< -l$(basename $<).lst -o tmp1.tmp
 	@srec_cat tmp1.tmp -binary -offset 0x100 -o tmp2.tmp -intel
 	@tail -n +2 tmp2.tmp > $@
 	@sed -i '/:......000000000000000000000000000000000000000000000000000000000000000000..$$/d' $@
 
-$(TARGET2).hex: $(TARGET2).Z80
+$(TARGET2).hex: $(target2_lower).z80
 	@echo [Z80ASM] $<
 	@$(ASM) $(FLAGSHEX) $< -l$(basename $<).lst -o tmp1.tmp
 	@srec_cat tmp1.tmp -binary -offset 0x100 -o tmp2.tmp -intel
@@ -101,4 +103,4 @@ flash: $(TARGET1).hex $(TARGET2).hex
 clean:
 	@echo "[clean]"
 	@rm -rf *~ 
-	@rm -rf *.{cap,log,tmp,rom,bin,hex,lst}
+	@rm -rf *.{cap,log,tmp,rom,bin,hex,lst,com}
