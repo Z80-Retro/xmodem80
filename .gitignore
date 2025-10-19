@@ -25,3 +25,5 @@
 # Private folders
 private/
 tmp/
+
+*.com
